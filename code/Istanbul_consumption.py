@@ -468,7 +468,7 @@ if __name__== "__main__":
 
     df_norm=normaliseData(df)
     df_norm.to_csv('yelp/istanbul_cc_n.csv',index=False)
-        areaGraphConstruction()
+    areaGraphConstruction()
     areaFeatureExtraction()
     areaRegression()
        

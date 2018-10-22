@@ -19,7 +19,7 @@ import seaborn as sns
 from statsmodels.formula.api import ols
 sns.set(color_codes=True)
 sns.set_style("whitegrid")
-
+#%%
 
 
 #helper to read raw credit card data , repeat means we consider more than one trip by a user
@@ -114,7 +114,7 @@ def readInOutDiversity():
 # diversity of avaialblity of shops - ie not weighted by consumption value 
 def readAvailablityDiversity():
 
-    df=readRawFlows(repeat=True)
+    df=readRawFlows(isRepeat=True)
     
     df2=pd.read_csv("istanbulData/raw/4-shopid_mccmerged.csv")
     
@@ -127,12 +127,12 @@ def readAvailablityDiversity():
     def diversity(chunk):
         return scipy.stats.entropy(chunk.counts.values)
     def numUniqueDiversity(chunk):
-        return scipy.stats.entropy(chunk.counts.values) 
+        return len(chunk) 
     groups=df.groupby(['sdistrict_id','mcc_merged']).apply(len)
     groups=groups.reset_index()
     groups.rename(columns={0:'counts','district_id':'sdistrict_id'},inplace=True)
 
-    entros_in= groups.groupby(['sdistrict_id']).apply(diversity)
+    entros_in= groups.groupby(['sdistrict_id']).apply(numUniqueDiversity)
     entros_in=entros_in.reset_index()
     entros_in.rename(columns={0:'mcc_merged'},inplace=True)
     entros_in['district_id']=entros_in.sdistrict_id
@@ -142,7 +142,7 @@ def readAvailablityDiversity():
     groups.rename(columns={0:'counts','district_id':'sdistrict_id'},inplace=True)
     
     
-    entros_out= groups.groupby(['sdistrict_id']).apply(diversity)
+    entros_out= groups.groupby(['sdistrict_id']).apply(numUniqueDiversity)
     entros_out=entros_out.reset_index()
     entros_out.rename(columns={0:'mcc_detailed'},inplace=True)
     
@@ -252,11 +252,20 @@ def regress(df):
 #functions for exploratory purposes SI
 
 def getFlowMHeatMap():
+    
+    
+    df_names=pd.read_csv('istanbulData/raw/Istanbul_district_area.txt')
+    df_diverse=pd.read_csv('istanbulData/shopavaildiversity.csv')
+    df_diverse=pd.merge(df_diverse,df_names,on='district_id',how='left')
+    df_diverse= df_diverse.sort_values('district_id')
+    
+    districts=np.sort(df_diverse.district_id.values.tolist())
+    
     df=readRawFlows(True)
     df=df.dropna(subset=['hdistrict_id','sdistrict_id'])
     df2=df.groupby(['hdistrict_id','sdistrict_id']).apply(len)
     df2=df2.reset_index()
-    districts=df2.hdistrict_id.unique()
+
     mapper={}
     demapper={}
     matrix=np.zeros(shape=(len(districts),len(districts)))
@@ -265,14 +274,25 @@ def getFlowMHeatMap():
         mapper[districts[i]]=i
     
     def addToMat(row):
-        fromm=mapper[row.hdistrict_id]
-        to=mapper[row.sdistrict_id]
-        if to!=fromm:
-            matrix[fromm,to]=row[0]
         
+        try:
+            fromm=mapper[row.hdistrict_id]
+            to=mapper[row.sdistrict_id]
+            if to!=fromm:
+                matrix[fromm,to]=row[0]
+        except:
+            pass
     df2.apply(addToMat,1)
-    ax=sns.heatmap(matrix)
     
+    plt.figure()
+#==============================================================================
+#     sns.heatmap(matrix)
+#     plt.yticks(range(len(df_diverse)),df_diverse.district_name.values.tolist())
+#     plt.xticks(range(len(df_diverse)),df_diverse.district_name.values.tolist(),rotation='vertical',verticalalignment='top')
+#     
+#==============================================================================
+    plt.savefig('alalala',dpi=300)
+    sns.heatmap(df_diverse.mcc_detailed.values.reshape(39,1),cmap='PuBu',cbar_kws = dict(use_gridspec=False,location="top"))
 def getHouseAndPopDseMap():
     df=pd.read_csv("thesisData/beijing_cc.csv")
     df2=pd.read_csv("yelp/istanbul_cc_n.csv")

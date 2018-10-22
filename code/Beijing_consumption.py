@@ -26,7 +26,7 @@ from statsmodels.formula.api import ols
 
 
 def getCoupon2shop():
-    data = pd.read_csv('../CleanData/meituan_data.csv', 'utf-8', delimiter = ',')
+    data = pd.read_csv('meituan_data.csv', 'utf-8', delimiter = ',')
     coupon2shop = {}
     data.columns = range(16)
     for i in range(len(data)):
@@ -415,8 +415,8 @@ def buildAreaGraph(graph_type,area2id,area2location,num2name):
         return G_dist
 
 def areaGraphConstruction():
-    shop_temp=json.load(open('../CleanData/shop.json','rb'))
-    shop2id_temp=json.load(open('../CleanData/shop2id.json','rb'))
+    shop_temp=json.load(open('shop.json','rb'))
+    shop2id_temp=json.load(open('shop2id.json','rb'))
     shop,shop2id={},{}
     for key,value in shop_temp.iteritems():
         shop[int(key)]=value
@@ -793,16 +793,129 @@ def regressionPlotsArea(yvar,fet_list,df,df_norm,norm=False):
         print(model.summary())
         
 def areaRegression():
-    df = pd.read_csv('../CleanData/areaDataWithAllFeatures.csv',encoding='utf-8',sep='\t')
+    df = pd.read_csv('beijing_consumption.csv',encoding='utf-8',sep='\t')
     fet_list = [u'categoryEntropy',u'averageCategoryDivergence', u'degreeCus', 
          u'degreeDist',u'incomeEntropy', u'avgCusEntropy', u'dessertCS', u'cusEigen', u'dEigen','fracofDessert','pairwise']
     yvars=['log_pop','log_econ','averageRating','log_sales']
     df_norm=normaliseData(df,fet_list)
     for yvar in yvars:
         regressionPlotsArea(yvar,fet_list,df,df_norm,norm=True)
+
+
+def addAverageIncome():
+    user2shop=json.load(open('../UserAnalysis/user2shop.json', 'rb'))
+    area2id=json.load(open('area2id.json', 'rb'))
+    
+    incomeData=pd.read_csv('../CleanData/datawithAllfeatures.csv',encoding='utf-8',sep='\t')
+    incomeData=incomeData[incomeData['dianping_price'].notnull()]
+    flag=incomeData['meituan_category'].isin([u'甜点饮品'])
+    incomeData=incomeData[~flag]
+    priceDict={}
+    for index, row in incomeData.iterrows():
+        priceDict[row['meituan_id']]=row['dianping_price']
+    userIncome=[]
+    userAvgIncome=[]
+    userID=[]
+    for key,value in user2shop.iteritems():
+        summ=0.0
+        count=0
+        for shop in list(value):
+            if shop in priceDict:
+                summ+=priceDict[shop]
+                count+=1
+        if count!=0:
+            userIncome.append(summ)
+            userID.append(key)
+            userAvgIncome.append(summ/count)
+
+    incomeDic={}
+    avgincomeDic={}
+    for i in range(len(userIncome)):
+        incomeDic[userID[i]]=userIncome[i]
+        avgincomeDic[userID[i]]=userAvgIncome[i]
+        
+    AreaID=[]
+    averageTotalExpenditure=[]
+    averageExpenditure=[]
+    
+    for area,iddict in area2id.iteritems():
+        count_dict = {}
+        count_dict_a = {}
+        for name,times in iddict.iteritems():
+            if name in incomeDic:
+                if incomeDic[name] not in count_dict:
+                    count_dict[incomeDic[name]] = times
+                else:
+                    count_dict[incomeDic[name]] += times
+                if avgincomeDic[name] not in count_dict_a:
+                    count_dict_a[avgincomeDic[name]] = times
+                else:
+                    count_dict_a[avgincomeDic[name]] += times
+        ainc=0.0
+        att=0
+        inc=0.0
+        tt=0
+        for key,value in count_dict.iteritems():
+            inc+=key*value
+            tt+=value
+            
+        for key,value in count_dict_a.iteritems():
+            ainc+=key*value
+            att+=value
+        averageTotalExpenditure.append(inc/tt)
+        AreaID.append(area)
+        averageExpenditure.append(ainc/att)
+        
+    df=pd.DataFrame(np.stack([AreaID,averageExpenditure,averageTotalExpenditure],1),columns=['district_id','avgExpenditure','averageTotalExpenditure'])
+    df.to_csv('beijingEstIncome.csv',index=False)
+    
+    
+
+
+def getPopulation():
+    df=pd.read_csv('bj_pop.csv')[['districtID','Popu','Popu_float','Pop_Sum','Dens_Pob']]
+    df.rename(columns={'districtID':'district_id','Pop_Sum':'pop','Popu_float':'popfloat','Popu':'popres'},inplace=True)
+    df2=pd.read_csv('td/bj_house_price.csv')
+    df2.rename(columns={'districtID':'district_id',u'Mean House Price (MHP)':'HPI'},inplace=True)
+    df=pd.merge(df,df2[['district_id','HPI']],on='district_id',how='left')
+    df['pop']=df['pop']/1000
+    return df
+
+def generateConsumptionDataWithControls():
+    df=pd.read_csv('beijing_consumption.csv',sep='\t')
+    df.rename(columns={'districtID':'district_id'},inplace=True)
+    df.dropna(subset=['economy','categoryEntropy'],inplace=True)
+    df['logEcon']=np.log(df.economy)
+
+    df2=pd.read_csv('beijingEstIncome.csv')
+    df=pd.merge(df,df2,on='district_id',how='left')
+    
+    df2=getPopulation()
+    df=pd.merge(df,df2,on='district_id',how='left')
+    
+    df2=getEcon()[['district_id','econdse','area']]
+    df=pd.merge(df,df2,on='district_id',how='left')
+    df['logEcondse']=np.log(df.econdse)
+    
+    df['popdse']=df['pop']/df['area']
+    df['logpopdse']=np.log(df['popdse'])
+    
+    rents=df[df.HPI!=0].HPI.min()
+    df.HPI=df.HPI/rents
+    
+#===============================================co===============================
+#     df=df[df['numberofShops']!=1]
+#==============================================================================
+#==============================================================================
+#     df=df[df['categoryEntropy']!=0]
+#==============================================================================
+    return df
+    
 #%%
 areaGraphConstruction()
 areaFeatureExtraction()
+addAverageIncome()
+generateConsumptionDataWithControls()
 #==============================================================================
 # areaRegression()
 #==============================================================================
