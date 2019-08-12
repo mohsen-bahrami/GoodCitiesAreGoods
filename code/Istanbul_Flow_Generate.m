@@ -1,9 +1,9 @@
 load allprojectdata.mat
  
 % merchant_district.csv as merchantdistrict matrix and column vectors both
-% load akbank_custs_7sep
+% load bank_custs_7sep
 % load transactions trx4sep
-% load carowners and districts36 : only 36 districts are considered
+% load districts36: only 36 districts are considered
 % load gdp.csv as matrix
 % load time, time_original, attractiveness as tables
 
@@ -11,8 +11,8 @@ load allprojectdata.mat
 % inflow, outflow, shopflow, workflow, frequency based flow,
 
 
-customers = unique(cust_id); %cust_id from akbank trx cleaned
-merchants = unique(mer_id); %mer_id from akbank trx cleaned
+customers = unique(cust_id); %cust_id from bank trx cleaned
+merchants = unique(mer_id); %mer_id from bank trx cleaned
 % districts = districts36; %districts list of 36 considered
 freqdist = zeros(length(customers), length(districts)); %visit freq dist table
 
@@ -35,9 +35,6 @@ end
 %filling the frequency table 
 %each row is number of transactions of a customer in each district
 for i = 1:length(cust_id) %iterate over transactions
-    if rem(i,100000) == 0
-        i
-    end
     m = 0; n = 0;
     for j = 1:length(customers)
         if cust_id(i) == customers(j)
