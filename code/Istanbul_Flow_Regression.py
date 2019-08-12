@@ -39,23 +39,6 @@ def readRawFlows(isRepeat):
     
     return raw
 
-# helper to get customer information
-def getCust():
-    #62392 unique customers
-    demog=pd.read_csv('istanbulData/raw/customers_60k_DEMOGRAPHICS.csv')
-    demog['agecat']=(demog.age/10).astype(int)
-    mask=demog.income==0
-    avgincome=demog.income[demog.income!=0].mean()
-    demog.loc[mask,'income']=avgincome
-    demog['incomecat']=pd.qcut(demog.income,10,labels=False).tolist()
-    hdf1=pd.read_csv('istanbulData/raw/6-custidhdistid.csv')
-    demog=pd.merge(demog,hdf1,how='left',on='customer_id')
-    wdf1=pd.read_csv('istanbulData/raw/7-custidwdistid.csv')
-    demog=pd.merge(demog,wdf1,how='left',on='customer_id')
-    demog.dropna(inplace=True)
-    return demog
-
-
 # helper to get flow matrix. hdistrict_id = origin. sdistrict_id = destination
 def readInOutFlows(isRepeat):
     raw=readRawFlows(isRepeat)
@@ -64,51 +47,6 @@ def readInOutFlows(isRepeat):
     movement.rename(columns={0:'counts','district_id':'sdistrict_id'},inplace=True)
     return movement
 
-
-# helper to get inflow demographic diversity,  and outflow destination diversity
-def readInOutDiversity():
-    demog=getCust()
-    df=readRawFlows(repeat=True)
-    df=pd.merge(df,demog,on='customer_id',how='left')
-    df.dropna(subset=['hdistrict_id'],inplace=True)
-    def diversity(chunk):
-        return scipy.stats.entropy(chunk.counts.values)
-    def total(chunk):
-        return chunk.counts.sum()   
-
-    #'vector' that describes the diversity of the people
-#==============================================================================
-#     df['composite_in']=df.agecat.astype(str) + df.incomecat.astype(str)+ df.hdistrict_id.astype(str) + df.education.astype(str) + df.gender.astype(str)
-#==============================================================================
-    df['composite_in']=df.agecat.astype(str) + df.incomecat.astype(str)+ df.wdistrict_id.astype(str)+ df.hdistrict_id.astype(str) + df.education.astype(str) + df.gender.astype(str)
-#==============================================================================
-#      df['composite_in']=df.agecat.astype(str) + df.incomecat.astype(str)+ df.hdistrict_id.astype(str) + df.education.astype(str) + df.gender.astype(str)
-#==============================================================================
-    groups=df.groupby(['sdistrict_id','composite_in']).apply(len)
-    groups=groups.reset_index()
-    groups.rename(columns={0:'counts','district_id':'sdistrict_id'},inplace=True)
-    
-    entros_in= groups.groupby(['sdistrict_id']).apply(diversity)
-    entros_in=entros_in.reset_index()
-    entros_in.rename(columns={0:'entropy_in'},inplace=True)
-    entros_in['district_id']=entros_in.sdistrict_id
-    
-    groups=df.groupby(['sdistrict_id','hdistrict_id']).apply(len)
-    groups=groups.reset_index()
-    groups.rename(columns={0:'counts','district_id':'sdistrict_id'},inplace=True)
-    
-    
-    entros_out= groups.groupby(['hdistrict_id']).apply(diversity)
-    entros_out=entros_out.reset_index()
-    entros_out.rename(columns={0:'entropy_out'},inplace=True)
-
-    ddf2=entros_out.rename(columns={'hdistrict_id':'district_id'})
-    ddf2=pd.merge(ddf2,entros_in,how='left',on='district_id')
-    ddf2.drop(['sdistrict_id'],axis=1,inplace=True)
-    ddf2.dropna(inplace=True) 
-    ddf2.district_id=ddf2.district_id.astype(int)
-    ddf2.to_csv('istanbulData/flow_diversity.csv')
-    return ddf2
 
 
 # diversity of avaialblity of shops - ie not weighted by consumption value 
